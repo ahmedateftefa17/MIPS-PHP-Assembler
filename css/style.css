@@ -1,0 +1,35 @@
+textarea.form-control {
+  resize: none;
+  margin-bottom: 15px;
+}
+
+input[type="submit"] {
+  margin-left: 35%;
+  transform: translateX(-50%)0;
+}
+
+.form-group {
+  position: fixed;
+}
+
+
+
+.holder {
+  margin: 15px 0px;
+  display: flex;
+  justify-content: space-around;
+}
+
+
+
+.output {
+  background-color: #1f841f;
+  height: 95vh;
+  width: 23%;
+  overflow-y: scroll;
+  padding: 20px;
+  box-shadow: 0 3px 8px 0 rgba(0 , 0 , 0 , 0.16),
+              0 0 0 1px rgba(0, 0 , 0 , 0.08);
+  border-radius: 3px;
+  color:#f7f7f7;
+}
