@@ -2,16 +2,10 @@
 
   include "constants.php";
 
-  function assembler($data = NULL){
-    if($data === NULL) {
-      $file = fopen("instructions.asm", "r");
-      $data = fread($file, filesize("instructions.asm"));
-      fclose($file);
-    }
-
+  function assembler($request){
+    $data = isset($request['assembly']) ? $request['assembly'] : "";
     $instructions_bin = "";
     $instructions_array_2d = [];
-
     $instructions_array = explode("\r\n", $data);
     $ins_count = 0;
     if(count($instructions_array) > 0) foreach ($instructions_array as $instruction_line) {
@@ -46,8 +40,6 @@
         }
       }
       $instructions_array_2d[] = $instruction_line_array;
-      // echo '<pre>'; var_dump($instruction_line_array); echo '</pre>';
-
       if(count($instruction_line_array) < 1) continue;
       if(array_key_exists($instruction_line_array[0], $GLOBALS['instructions']["RA"])){
         $instructions_bin .= "000000";
@@ -71,12 +63,9 @@
         $instructions_bin .= $GLOBALS['registers'][$instruction_line_array[1]];
         if((int) $instruction_line_array[3] >= 0)
           $instructions_bin .= sprintf("%'.016b", (int) $instruction_line_array[3]);
-        else $instructions_bin .= substr(sprintf("%b", (int) $instruction_line_array[3]), 48, 64);
+        else $instructions_bin .= substr(sprintf("%b", (int) $instruction_line_array[3]), 16, 32);
         $instructions_bin .= "\r\n";
       } elseif(array_key_exists($instruction_line_array[0], $GLOBALS['instructions']["IB"])){
-        $instructions_bin .= sprintf("%'.032b", 32);
-        $instructions_bin .= "\r\n" . sprintf("%'.032b", 32);
-        $instructions_bin .= "\r\n";
         for($i = 0; $i < count($instructions_array); $i++)
           if(strpos(trim($instructions_array[$i]), $instruction_line_array[3]) === 0)
             $instruction_line_array[3] = $i - $ins_count;
@@ -85,9 +74,7 @@
         $instructions_bin .= $GLOBALS['registers'][$instruction_line_array[2]];
         if((int) $instruction_line_array[3] >= 0)
           $instructions_bin .= sprintf("%'.016b", (int) $instruction_line_array[3]);
-        else $instructions_bin .= substr(sprintf("%b", (int) $instruction_line_array[3]), 48, 64);
-        $instructions_bin .= "\r\n" . sprintf("%'.032b", 32);
-        $instructions_bin .= "\r\n" . sprintf("%'.032b", 32);
+        else $instructions_bin .= substr(sprintf("%b", (int) $instruction_line_array[3]), 16, 32);
         $instructions_bin .= "\r\n";
       } elseif(array_key_exists($instruction_line_array[0], $GLOBALS['instructions']["IM"])){
         $instructions_bin .= $GLOBALS['instructions']["IM"][$instruction_line_array[0]];
@@ -95,7 +82,7 @@
         $instructions_bin .= $GLOBALS['registers'][$instruction_line_array[1]];
         if((int) $instruction_line_array[2] >= 0)
           $instructions_bin .= sprintf("%'.016b", (int) $instruction_line_array[2]);
-        else $instructions_bin .= substr(sprintf("%b", (int) $instruction_line_array[2]), 48, 64);
+        else $instructions_bin .= substr(sprintf("%b", (int) $instruction_line_array[2]), 16, 32);
         $instructions_bin .= "\r\n";
       } elseif(array_key_exists($instruction_line_array[0], $GLOBALS['instructions']["JL"])){
         for($i = 0; $i < count($instructions_array); $i++)
@@ -104,18 +91,31 @@
         $instructions_bin .= $GLOBALS['instructions']["JL"][$instruction_line_array[0]];
         if((int) $instruction_line_array[1] >= 0)
           $instructions_bin .= sprintf("%'.026b", (int) $instruction_line_array[1]);
-        else $instructions_bin .= substr(sprintf("%b", (int) $instruction_line_array[1]), 48, 64);
+        else $instructions_bin .= substr(sprintf("%b", (int) $instruction_line_array[1]), 16, 32);
         $instructions_bin .= "\r\n";
       }
     }
-    $file = fopen("instructions.bin", "w");
-    fwrite($file, instructions_bin_extender($instructions_bin));
-    fclose($file);
+    $instructions = fopen("IMemory.bin", "w");
+    fwrite($instructions, bin_extender($instructions_bin, 1024));
+    fclose($instructions);
+    if($data !== "") {
+      $RegisterFile = fopen("RegisterFile.bin", "w");
+      fwrite($RegisterFile, sprintf("%'.032b\r\n", 0));
+      for($i = 1; $i < 32; $i++)
+        fwrite($RegisterFile, sprintf("%'.032b\r\n", $request["register_file_$i"]));
+      fclose($RegisterFile);
+      $DMemory = fopen("DMemory.bin", "w");
+      fwrite($DMemory, sprintf("%'.032b\r\n", 0));
+      for($i = 1; $i < 1024; $i++)
+        fwrite($DMemory, sprintf("%'.032b\r\n", $request["data_memory_$i"]));
+      fclose($DMemory);
+    }
+    echo shell_exec("iverilog -o compiled *.v && vvp compiled");
     return $instructions_bin;
   }
 
-  function instructions_bin_extender($instructions_bin){
-    for ($i = substr_count($instructions_bin, "\r\n"); $i < 64; $i++)
-      $instructions_bin .= sprintf("%'.032b", 0) . "\r\n";
+  function bin_extender($instructions_bin, $length){
+    for ($i = substr_count($instructions_bin, "\r\n"); $i < $length; $i++)
+      $instructions_bin .= sprintf("%'.032b\r\n", 0);
     return substr($instructions_bin, 0, strlen($instructions_bin) - 2);
   }
